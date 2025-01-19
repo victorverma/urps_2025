@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 conda env create -p autogluon_env/ -f autogluon_env.yml
 conda activate autogluon_env/

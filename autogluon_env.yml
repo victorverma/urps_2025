@@ -1,4 +1,4 @@
-name: env
+name: autogluon_env
 channels:
   - defaults
   - conda-forge

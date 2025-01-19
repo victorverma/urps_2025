@@ -1,0 +1,3 @@
+# Keep data out of the repo
+*
+!.gitignore
