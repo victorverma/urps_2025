@@ -3,8 +3,8 @@
 #SBATCH --job-name=ar1_experiments
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --partition=standard
-#SBATCH --nodes=8
-#SBATCH --tasks-per-node=1
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=16GB
 #SBATCH --time=01:00:00
