@@ -1,0 +1,21 @@
+name: autogluon_gpu_env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+  - nvidia
+dependencies:
+  - python=3.11
+  - ipykernel=6.29
+  - ipywidgets=8.1
+  - numpy=1.26
+  - pandas=2.2
+  - pip=24.3
+  - plotnine=0.14
+  - pyarrow=18.1
+  - pytorch=2.5
+  - pytorch-cuda=12.1
+  - scikit-learn=1.5
+  - scipy=1.14
+  - uv=0.5
+
