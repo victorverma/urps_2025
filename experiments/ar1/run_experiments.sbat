@@ -1,12 +1,8 @@
 #!/bin/sh
 
 #SBATCH --job-name=ar1_experiments
-#SBATCH --mail-user=${MAIL_USER}
 #SBATCH --mail-type=BEGIN,END,FAIL
-
-#SBATCH --account=${ACCOUNT}
 #SBATCH --partition=standard
-
 #SBATCH --nodes=8
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=1
