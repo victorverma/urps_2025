@@ -87,23 +87,22 @@ def check_prediction_intervals(
     alpha = 1.0 - ci_level   # e.g., if ci_level=0.95, alpha=0.05
     lower_quantile = alpha / 2.0
     upper_quantile = 1.0 - lower_quantile
-
-    # create the predictor
-    predictor = TimeSeriesPredictor(
+    
+    for model_name, model_hparams in hyperparameters.items():
+        # Create a fresh predictor path to avoid collisions
+        # create the predictor
+        predictor = TimeSeriesPredictor(
             prediction_length = prediction_length,
             eval_metric = eval_metric,
-            #freq = freq,
             quantile_levels = [lower_quantile, upper_quantile]
         )
         
-    # Fit the model
-    predictor.fit(
-        train_data=train_df,
-        hyperparameters=hyperparameters,
-        time_limit=time_limit
-    )
-    
-    for model_name, model_hparams in hyperparameters.items():
+        # Fit the model
+        predictor.fit(
+            train_data=train_df,
+            hyperparameters={model_name: model_hparams},
+            time_limit=time_limit
+        )
         
         # Generate predictions with intervals
         pred_ints = predictor.predict(train_df)
