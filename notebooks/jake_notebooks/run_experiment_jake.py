@@ -197,6 +197,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_metric", type=str, help="Metric to use for hyperparameter tuning on a validation set")
     parser.add_argument("--ci_level", type=float, help="Level of the prediction intervals, e.g., 0.95")
     parser.add_argument("--time_limit", type=int, help="Maximum number of seconds for fitting a model")
+    parser.add_argument("--epochs", type=int, help="Number of Epochs for fitting a model")
 
     cmd_args = parser.parse_args()
     num_runs = cmd_args.num_runs
@@ -206,12 +207,16 @@ if __name__ == "__main__":
     eval_metric = cmd_args.eval_metric
     ci_level = cmd_args.ci_level
     time_limit = cmd_args.time_limit
+    epochs = cmd_args.epochs
 
     ################################################################################
     # Run the experiment
     ################################################################################
 
-    hyperparameters = {"AutoARIMA": {}, "PatchTST": {}, "TemporalFusionTransformer": {}}
+    hyperparameters = {#"AutoARIMA": {}, 
+                       "PatchTST": {"max_epochs": epochs}
+                       #"TemporalFusionTransformer": {}
+                       }
     rng = np.random.default_rng(12345)
     results = run_ar1_experiment(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, hyperparameters, rng)
     results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
