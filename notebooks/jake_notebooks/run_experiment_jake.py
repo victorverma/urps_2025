@@ -76,7 +76,7 @@ def check_prediction_intervals(
         path="model_store", 
         quantile_levels=quantiles
     )
-    predictor.fit(train_data, hyperparameters=hyperparameters, time_limit=time_limit, presets="best_quality", verbosity=2)
+    predictor.fit(train_data, hyperparameters=hyperparameters, time_limit=time_limit, presets="best_quality", verbosity=4)
     
     results = []
     for model_name in predictor.model_names():
@@ -214,8 +214,8 @@ if __name__ == "__main__":
     ################################################################################
 
     hyperparameters = {#"AutoARIMA": {}, 
-                       "PatchTST": {"max_epochs": epochs}
-                       #"TemporalFusionTransformer": {}
+                       #"PatchTST": {"max_epochs": epochs}
+                       "TemporalFusionTransformer": {"max_epochs": epochs}
                        }
     rng = np.random.default_rng(12345)
     results = run_ar1_experiment(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, hyperparameters, rng)
