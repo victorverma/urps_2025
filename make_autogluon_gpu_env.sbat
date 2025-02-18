@@ -13,3 +13,4 @@ echo "Running on $SLURM_JOB_NODELIST"
 echo "Running in $(pwd)"
 
 ./make_autogluon_gpu_env.sh
+./make_autogluon_env.sh
