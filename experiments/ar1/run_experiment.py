@@ -62,7 +62,7 @@ def check_prediction_intervals(
 
     return checks
 
-def run_ar1_experiment(
+def run_experiment(
         num_runs: int,
         fve: float,
         train_size: int,
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
     hyperparameters = {"AutoARIMA": {}, "PatchTST": {}, "TemporalFusionTransformer": {}}
     rng = np.random.default_rng(12345)
-    results = run_ar1_experiment(
+    results = run_experiment(
         num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, rng
     )
     results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
