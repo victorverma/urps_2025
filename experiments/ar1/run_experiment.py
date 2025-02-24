@@ -122,7 +122,7 @@ def plot_results(
     return plot
 
 if __name__ == "__main__":
-    print("Running AR(1) Experiment", end="", flush=True)
+    print("Running AR(1) Experiment...")
     experiment_start_time = time.time()
 
     ################################################################################
@@ -175,5 +175,4 @@ if __name__ == "__main__":
     save_as_pdf_pages([results_plot], os.path.join(dir_name, "results_plot.pdf"))
 
     experiment_elapsed_time = time.time() - experiment_start_time
-    print(f"\rRunning AR(1) experiment ({int(experiment_elapsed_time)}s)", flush=True)
-    print("Done")
+    print(f"Done ({int(experiment_elapsed_time)}s)")
