@@ -138,7 +138,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--eval_metric", type=str, required=True, help="Metric to use for hyperparameter tuning on a validation set")
     parser.add_argument("--ci_level", type=float, required=True, help="Level of the prediction intervals, e.g., 0.95")
-    parser.add_argument("--time_limit", type=int, required=True, help="Maximum number of seconds for fitting a model")
+    parser.add_argument("--time_limit", type=int, required=True, help="Maximum number of seconds for fitting all of the models on one run")
     parser.add_argument(
         "--verbosity", default=0, type=int, choices=range(5), help="Level of detail of printed information about model fitting"
     )
