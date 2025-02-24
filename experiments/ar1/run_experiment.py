@@ -130,13 +130,15 @@ if __name__ == "__main__":
     ################################################################################
 
     parser = argparse.ArgumentParser(description="Run an AR(1) experiment")
-    parser.add_argument("--num_runs", type=int, help="Number of runs to execute")
-    parser.add_argument("--fve", type=float, help="Fraction of variance explained of the AR(1) model, e.g., 0.5")
-    parser.add_argument("--train_size", type=int, help="Size of a training set")
-    parser.add_argument("--prediction_length", type=int, help="Number of time steps after a training set to compute predictions at")
-    parser.add_argument("--eval_metric", type=str, help="Metric to use for hyperparameter tuning on a validation set")
-    parser.add_argument("--ci_level", type=float, help="Level of the prediction intervals, e.g., 0.95")
-    parser.add_argument("--time_limit", type=int, help="Maximum number of seconds for fitting a model")
+    parser.add_argument("--num_runs", type=int, required=True, help="Number of runs to execute")
+    parser.add_argument("--fve", type=float, required=True, help="Fraction of variance explained of the AR(1) model, e.g., 0.5")
+    parser.add_argument("--train_size", type=int, required=True, help="Size of a training set")
+    parser.add_argument(
+        "--prediction_length", type=int, required=True, help="Number of time steps after a training set to compute predictions at"
+    )
+    parser.add_argument("--eval_metric", type=str, required=True, help="Metric to use for hyperparameter tuning on a validation set")
+    parser.add_argument("--ci_level", type=float, required=True, help="Level of the prediction intervals, e.g., 0.95")
+    parser.add_argument("--time_limit", type=int, required=True, help="Maximum number of seconds for fitting a model")
     parser.add_argument(
         "--verbosity", default=0, type=int, choices=range(5), help="Level of detail of printed information about model fitting"
     )
