@@ -39,6 +39,7 @@ def check_prediction_intervals(
         eval_metric: str,
         ci_level: float,
         time_limit: int,
+        verbosity: int,
         hyperparameters: Dict[str | Type, Any]
     ) -> pd.DataFrame:
     data["item_id"] = 0
@@ -46,7 +47,10 @@ def check_prediction_intervals(
     train_data, test_data = data.train_test_split(prediction_length)
 
     predictor = TimeSeriesPredictor(
-        prediction_length=prediction_length, eval_metric=eval_metric, verbosity=0, quantile_levels=[(1 - ci_level) / 2, (1 + ci_level) / 2]
+        prediction_length=prediction_length,
+        eval_metric=eval_metric,
+        verbosity=verbosity,
+        quantile_levels=[(1 - ci_level) / 2, (1 + ci_level) / 2]
     )
     predictor.fit(train_data, time_limit=time_limit, hyperparameters=hyperparameters, enable_ensemble=False)
 
@@ -66,6 +70,7 @@ def run_ar1_experiment(
         eval_metric: str,
         ci_level: float,
         time_limit: int,
+        verbosity: int,
         hyperparameters: Dict[str | Type, Any],
         rng: np.random.Generator
     ) -> pd.DataFrame:
@@ -75,7 +80,7 @@ def run_ar1_experiment(
     results = []
     for run_num in range(num_runs):
         data = simulate_ar1(phi, sigma, n, rng)
-        checks = check_prediction_intervals(data, prediction_length, eval_metric, ci_level, time_limit, hyperparameters)
+        checks = check_prediction_intervals(data, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
         checks.insert(0, "run_num", run_num)
         results.append(checks)
     results = pd.concat(results, ignore_index=True)
@@ -132,6 +137,9 @@ if __name__ == "__main__":
     parser.add_argument("--eval_metric", type=str, help="Metric to use for hyperparameter tuning on a validation set")
     parser.add_argument("--ci_level", type=float, help="Level of the prediction intervals, e.g., 0.95")
     parser.add_argument("--time_limit", type=int, help="Maximum number of seconds for fitting a model")
+    parser.add_argument(
+        "--verbosity", default=0, type=int, choices=range(5), help="Level of detail of printed information about model fitting"
+    )
 
     cmd_args = parser.parse_args()
     num_runs = cmd_args.num_runs
@@ -141,6 +149,7 @@ if __name__ == "__main__":
     eval_metric = cmd_args.eval_metric
     ci_level = cmd_args.ci_level
     time_limit = cmd_args.time_limit
+    verbosity = cmd_args.verbosity
 
     ################################################################################
     # Run the experiment
@@ -148,7 +157,9 @@ if __name__ == "__main__":
 
     hyperparameters = {"AutoARIMA": {}, "PatchTST": {}, "TemporalFusionTransformer": {}}
     rng = np.random.default_rng(12345)
-    results = run_ar1_experiment(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, hyperparameters, rng)
+    results = run_ar1_experiment(
+        num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, rng
+    )
     results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
 
     ################################################################################
