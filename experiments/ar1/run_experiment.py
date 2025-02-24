@@ -71,14 +71,14 @@ def run_experiment(
         ci_level: float,
         time_limit: int,
         verbosity: int,
-        hyperparameters: Dict[str | Type, Any],
-        rng: np.random.Generator
+        hyperparameters: Dict[str | Type, Any]
     ) -> pd.DataFrame:
     phi = calc_phi_from_fve(fve)
     sigma = 1
     n = train_size + prediction_length
     results = []
     for run_num in range(num_runs):
+        rng = np.random.default_rng(run_num)
         data = simulate_ar1(phi, sigma, n, rng)
         checks = check_prediction_intervals(data, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
         checks.insert(0, "run_num", run_num)
@@ -162,10 +162,7 @@ if __name__ == "__main__":
     ################################################################################
 
     hyperparameters = {"AutoARIMA": {}, "PatchTST": {"max_epochs": max_epochs}, "TemporalFusionTransformer": {"max_epochs": max_epochs}}
-    rng = np.random.default_rng(12345)
-    results = run_experiment(
-        num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, rng
-    )
+    results = run_experiment(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
     results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
 
     ################################################################################
