@@ -25,30 +25,14 @@ def calc_phi_from_fve(fve: float) -> float:
     phi = np.sqrt(fve)
     return phi
 
-# Fill in the function below. Assume that
-#
-# - The `"target"` column of `test_data` contains the data.
-# - `predictions` contains predictions for the last `prediction_length` observations in `test_data`.
-# - The next-to-last column of `predictions` contains lower bounds for prediction intervals and the last column contains upper bounds.
-#
-# The function should return a `Series` whose kth entry is `True` if and only if the kth prediction is between the corresponding bounds,
-# inclusive. The index values of the `Series` should be the strings `"1"`, ..., `"f{prediction_length}"`.
 def help_check_prediction_intervals(test_data: TimeSeriesDataFrame, prediction_length: int, predictions: TimeSeriesDataFrame) -> pd.Series:
-    pass
+    actuals = test_data["target"].iloc[-prediction_length:]
+    are_lower_bounds_right = actuals >= predictions.iloc[:, -2]
+    are_upper_bounds_right = actuals <= predictions.iloc[:, -1]
+    checks = are_lower_bounds_right & are_upper_bounds_right
+    checks.index = [str(i) for i in range(1, prediction_length + 1)]
+    return checks
 
-# Fill in the function below. Assume that
-#
-# - The `"timestamp"` column of `data` contains observation times and the `"target"` column contains observation values.
-# - The last `prediction_length` observations in `data` are test observations and the prior observations are training observations.
-# - Hyperparameter tuning on a validation set is to be done using `eval_metric`.
-# - Level-`ci_level` prediction intervals are needed. `ci_level` could be 0.95, for example.
-# - The training of any one model cannot take longer than `time_limit` seconds.
-# - The models to be used are specified in `hyperparameters`. For example, `hyperparameters` could equal `{"AutoARIMA": {}}`.
-#
-# For each model, the function should fit the model, calculate prediction intervals, and then use `help_check_prediction_intervals` to check
-# whether the intervals contain the corresponding observations. The function should return a `DataFrame` with one row for each model. In the row
-# for a model, the first column should contain the model name and the next `prediction_length` columns should contain flags indicating whether
-# the intervals contain the corresponding observations. The column names should be `"model"`, `"1"`, ..., `f"{prediction_length}"`.
 def check_prediction_intervals(
         data: pd.DataFrame,
         prediction_length: int,
@@ -57,23 +41,23 @@ def check_prediction_intervals(
         time_limit: int,
         hyperparameters: Dict[str | Type, Any]
     ) -> pd.DataFrame:
-    pass
+    data["item_id"] = 0
+    data = TimeSeriesDataFrame(data)
+    train_data, test_data = data.train_test_split(prediction_length)
 
-# Fill in the function below. Assume that
-#
-# - The number of runs to execute is `num_runs`.
-# - Datasets should be generated from an AR(1) model whose fraction of variance explained (FVE) is `fve`.
-# - The training part of a dataset should contain `train_size` observations.
-# - Predictions are to computed for the last `prediction_length` observations in a dataset.
-# - Hyperparameter tuning on a validation set is to be done using `eval_metric`.
-# - Level-`ci_level` prediction intervals are needed. `ci_level` could be 0.95, for example.
-# - The training of any one model cannot take longer than `time_limit` seconds.
-# - The models to be used are specified in `hyperparameters`. For example, `hyperparameters` could equal `{"AutoARIMA": {}}`.
-#
-# The function should generate `num_runs` datasets; for each dataset, it should use `check_prediction_intervals` to fit the models to the
-# dataset, compute prediction intervals, and check whether the intervals contain the corresponding observations. The function should return a
-# `DataFrame` that is the concatenation of the `DataFrames` produced by `check_prediction_intervals`. The first column should be a `"run_num"`
-# column that gives the run number for each `DataFrame` output by `check_prediction_intervals`.
+    predictor = TimeSeriesPredictor(
+        prediction_length=prediction_length, eval_metric=eval_metric, verbosity=0, quantile_levels=[(1 - ci_level) / 2, (1 + ci_level) / 2]
+    )
+    predictor.fit(train_data, time_limit=time_limit, hyperparameters=hyperparameters, enable_ensemble=False)
+
+    checks = pd.DataFrame(index=hyperparameters.keys(), columns=[str(i) for i in range(1, prediction_length + 1)])
+    for model in hyperparameters:
+        predictions = predictor.predict(train_data, model=model)
+        checks.loc[model] = help_check_prediction_intervals(test_data, prediction_length, predictions)
+    checks.reset_index(inplace=True, names="model")
+
+    return checks
+
 def run_ar1_experiment(
         num_runs: int,
         fve: float,
@@ -85,7 +69,17 @@ def run_ar1_experiment(
         hyperparameters: Dict[str | Type, Any],
         rng: np.random.Generator
     ) -> pd.DataFrame:
-    pass
+    phi = calc_phi_from_fve(fve)
+    sigma = 1
+    n = train_size + prediction_length
+    results = []
+    for run_num in range(num_runs):
+        data = simulate_ar1(phi, sigma, n, rng)
+        checks = check_prediction_intervals(data, prediction_length, eval_metric, ci_level, time_limit, hyperparameters)
+        checks.insert(0, "run_num", run_num)
+        results.append(checks)
+    results = pd.concat(results, ignore_index=True)
+    return results
 
 def make_dir_name(
     num_runs: int,
@@ -99,20 +93,6 @@ def make_dir_name(
     dir_name = f"{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}"
     return dir_name
 
-# Fill in the function below. Assume that
-#
-# - `results` contains the output of `run_ar1_experiment`.
-# - The number of runs to execute is `num_runs`.
-# - Datasets should be generated from an AR(1) model whose fraction of variance explained (FVE) is `fve`.
-# - The training part of a dataset should contain `train_size` observations.
-# - Predictions are to computed for the last `prediction_length` observations in a dataset.
-# - Hyperparameter tuning on a validation set is to be done using `eval_metric`.
-# - Level-`ci_level` prediction intervals are needed. `ci_level` could be 0.95, for example.
-# - The training of any one model cannot take longer than `time_limit` seconds.
-#
-# For each model, for h = 1, ..., `prediction_length`, the function should compute the coverage, i.e., the proportion of h-step-ahead
-# prediction intervals that contained the corresponding observation. The function should then output a plot that has one panel for each model,
-# with the panel for a model plotting the coverage versus h. Use both `geom_point` and `geom_line`. Use `make_dir_name` to make the title.
 def plot_results(
         results: pd.DataFrame,
         num_runs: int,
@@ -123,7 +103,18 @@ def plot_results(
         ci_level: float,
         time_limit: int
     ) -> ggplot:
-    pass
+    results_summary = results.iloc[:, 1:].groupby("model").mean().reset_index().melt(id_vars="model", var_name="h", value_name="coverage")
+    results_summary["h"] = results_summary["h"].astype("int")
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
+    plot = (
+        ggplot(data=results_summary, mapping=aes(x="h", y="coverage")) +
+        facet_wrap(facets="model") +
+        geom_point() +
+        geom_line() +
+        labs(y="Coverage", title=dir_name) +
+        theme_bw()
+    )
+    return plot
 
 if __name__ == "__main__":
     print("Running AR(1) Experiment", end="", flush=True)
