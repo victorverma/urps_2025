@@ -87,15 +87,16 @@ def run_experiment(
     return results
 
 def make_dir_name(
-    num_runs: int,
-    fve: float,
-    train_size: int,
-    prediction_length: int,
-    eval_metric: str,
-    ci_level: float,
-    time_limit: int
+        num_runs: int,
+        fve: float,
+        train_size: int,
+        prediction_length: int,
+        eval_metric: str,
+        ci_level: float,
+        time_limit: int,
+        max_epochs: int
     ) -> str:
-    dir_name = f"{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}"
+    dir_name = f"{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}"
     return dir_name
 
 def plot_results(
@@ -106,11 +107,12 @@ def plot_results(
         prediction_length: int,
         eval_metric: str,
         ci_level: float,
-        time_limit: int
+        time_limit: int,
+        max_epochs: int
     ) -> ggplot:
     results_summary = results.iloc[:, 1:].groupby("model").mean().reset_index().melt(id_vars="model", var_name="h", value_name="coverage")
     results_summary["h"] = results_summary["h"].astype("int")
-    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
     plot = (
         ggplot(data=results_summary, mapping=aes(x="h", y="coverage")) +
         facet_wrap(facets="model") +
@@ -139,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_metric", type=str, required=True, help="Metric to use for hyperparameter tuning on a validation set")
     parser.add_argument("--ci_level", type=float, required=True, help="Level of the prediction intervals, e.g., 0.95")
     parser.add_argument("--time_limit", type=int, required=True, help="Maximum number of seconds for fitting all of the models on one run")
+    parser.add_argument("--max_epochs", type=int, required=True, help="Maximum number of epochs for fitting a transformer-based model")
     parser.add_argument(
         "--verbosity", default=0, type=int, choices=range(5), help="Level of detail of printed information about model fitting"
     )
@@ -151,24 +154,25 @@ if __name__ == "__main__":
     eval_metric = cmd_args.eval_metric
     ci_level = cmd_args.ci_level
     time_limit = cmd_args.time_limit
+    max_epochs = cmd_args.max_epochs
     verbosity = cmd_args.verbosity
 
     ################################################################################
     # Run the experiment
     ################################################################################
 
-    hyperparameters = {"AutoARIMA": {}, "PatchTST": {}, "TemporalFusionTransformer": {}}
+    hyperparameters = {"AutoARIMA": {}, "PatchTST": {"max_epochs": max_epochs}, "TemporalFusionTransformer": {"max_epochs": max_epochs}}
     rng = np.random.default_rng(12345)
     results = run_experiment(
         num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, rng
     )
-    results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
+    results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
 
     ################################################################################
     # Save the results
     ################################################################################
 
-    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
     if os.path.exists(dir_name):
         shutil.rmtree(dir_name)
     os.mkdir(dir_name)

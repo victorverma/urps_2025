@@ -8,4 +8,5 @@ conda run -p ../../autogluon_env/ --live-stream python run_experiment.py \
     --eval_metric="RMSE" \
     --ci_level=0.95 \
     --time_limit=60 \
+    --max_epochs=1 \
     --verbosity=4
