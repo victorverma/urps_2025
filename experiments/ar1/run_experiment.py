@@ -5,6 +5,7 @@ import pandas as pd
 import shutil
 import time
 from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
+from concurrent.futures import ProcessPoolExecutor
 from plotnine import *
 from statsmodels.tsa.arima_process import ArmaProcess
 from typing import Any, Dict, Type
@@ -62,6 +63,24 @@ def check_prediction_intervals(
 
     return checks
 
+def do_1_run(
+        run_num: int,
+        phi: float,
+        sigma: float,
+        n: int,
+        prediction_length: int,
+        eval_metric: str,
+        ci_level: float,
+        time_limit: int,
+        verbosity: int,
+        hyperparameters: Dict[str | Type, Any]
+    ) -> pd.DataFrame:
+    rng = np.random.default_rng(run_num)
+    data = simulate_ar1(phi, sigma, n, rng)
+    checks = check_prediction_intervals(data, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
+    checks.insert(0, "run_num", run_num)
+    return checks
+
 def run_experiment(
         num_runs: int,
         fve: float,
@@ -71,19 +90,37 @@ def run_experiment(
         ci_level: float,
         time_limit: int,
         verbosity: int,
-        hyperparameters: Dict[str | Type, Any]
+        hyperparameters: Dict[str | Type, Any],
+        max_workers: int
     ) -> pd.DataFrame:
     phi = calc_phi_from_fve(fve)
     sigma = 1
     n = train_size + prediction_length
-    results = []
-    for run_num in range(num_runs):
-        rng = np.random.default_rng(run_num)
-        data = simulate_ar1(phi, sigma, n, rng)
-        checks = check_prediction_intervals(data, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
-        checks.insert(0, "run_num", run_num)
-        results.append(checks)
+
+    if max_workers == 1:
+        results = [
+            do_1_run(run_num, phi, sigma, n, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
+            for run_num in range(num_runs)
+        ]
+    else:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            results = list(
+                executor.map(
+                    do_1_run,
+                    range(num_runs),
+                    [phi] * num_runs,
+                    [sigma] * num_runs,
+                    [n] * num_runs,
+                    [prediction_length] * num_runs,
+                    [eval_metric] * num_runs,
+                    [ci_level] * num_runs,
+                    [time_limit] * num_runs,
+                    [verbosity] * num_runs,
+                    [hyperparameters] * num_runs
+                )
+            )
     results = pd.concat(results, ignore_index=True)
+
     return results
 
 def make_dir_name(
@@ -145,6 +182,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--verbosity", default=0, type=int, choices=range(5), help="Level of detail of printed information about model fitting"
     )
+    parser.add_argument("--max_workers", default=1, type=int, help="Maximum number of worker processes to use")
 
     cmd_args = parser.parse_args()
     num_runs = cmd_args.num_runs
@@ -156,13 +194,16 @@ if __name__ == "__main__":
     time_limit = cmd_args.time_limit
     max_epochs = cmd_args.max_epochs
     verbosity = cmd_args.verbosity
+    max_workers = cmd_args.max_workers
 
     ################################################################################
     # Run the experiment
     ################################################################################
 
     hyperparameters = {"AutoARIMA": {}, "PatchTST": {"max_epochs": max_epochs}, "TemporalFusionTransformer": {"max_epochs": max_epochs}}
-    results = run_experiment(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
+    results = run_experiment(
+        num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, max_workers
+    )
     results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
 
     ################################################################################

@@ -9,4 +9,5 @@ conda run -p ../../autogluon_env/ --live-stream python run_experiment.py \
     --ci_level=0.95 \
     --time_limit=60 \
     --max_epochs=1 \
-    --verbosity=4
+    --verbosity=4 \
+    --max_workers=2
