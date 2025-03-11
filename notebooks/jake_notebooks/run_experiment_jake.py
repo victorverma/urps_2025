@@ -34,6 +34,16 @@ def calc_phi_from_fve(fve: float) -> float:
 # The function should return a `Series` whose kth entry is `True` if and only if the kth prediction is between the corresponding bounds,
 # inclusive. The index values of the `Series` should be the strings `"1"`, ..., `"f{prediction_length}"`.
 def help_check_prediction_intervals(test_data: TimeSeriesDataFrame, prediction_length: int, predictions: TimeSeriesDataFrame) -> pd.Series:
+    
+    # To DO
+
+    #   - Report RMSE(h)
+    #   - Report Avg Pred interval length(h)
+    #   - Training Loss
+    #   - runtime 
+    #   - flops
+
+    
     actuals = test_data["target"].iloc[-prediction_length: ].values
     upper_bounds = predictions.iloc[:,-1].values
     lower_bounds = predictions.iloc[:,-2].values
@@ -77,7 +87,8 @@ def check_prediction_intervals(
         quantile_levels=quantiles
     )
     predictor.fit(train_data, hyperparameters=hyperparameters, time_limit=time_limit, presets="best_quality", verbosity=4)
-    
+    print(predictor.fit_summary(verbosity = 4))
+    print(predictor.info())
     results = []
     for model_name in predictor.model_names():
         model_predictions = predictor.predict(data=test_data, model=model_name)

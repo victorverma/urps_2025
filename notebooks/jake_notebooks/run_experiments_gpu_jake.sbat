@@ -8,11 +8,11 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8GB
-#SBATCH --time=00:15:00
+#SBATCH --time=11:00:00
 
 
 conda run -p ../../autogluon_gpu_env/ --live-stream python run_experiment_jake.py \
-    --num_runs=10000 \
+    --num_runs=1 \
     --fve=0.9 \
     --train_size=1000 \
     --prediction_length=100 \
