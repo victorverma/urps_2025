@@ -56,12 +56,21 @@ def check_prediction_intervals(
     predictor.fit(train_data, time_limit=time_limit, hyperparameters=hyperparameters, enable_ensemble=False)
 
     checks = pd.DataFrame(index=hyperparameters.keys(), columns=[str(i) for i in range(1, prediction_length + 1)])
+    results_list = []
     for model in hyperparameters:
         predictions = predictor.predict(train_data, model=model)
-        checks.loc[model] = help_check_prediction_intervals(test_data, prediction_length, predictions)
-    checks.reset_index(inplace=True, names="model")
-
-    return checks
+        lower_bounds, upper_bounds = predictions.iloc[:, -2], predictions.iloc[:, -1]
+        # checks.loc[model] = help_check_prediction_intervals(test_data, prediction_length, predictions)
+        coverage = help_check_prediction_intervals(test_data, prediction_length, predictions)
+        
+        df = pd.DataFrame({"model_name": model, "h":range(1, prediction_length+1), 
+                           "prediction": predictions["mean"].values, "lower_bound": lower_bounds.values, 
+                           "upper_bound": upper_bounds.values, "coverage_flags": coverage.values
+                           #, 
+                           #"square_error": (test_data[-prediction_length:] - predictions.iloc[:, 0])**2})
+    # checks.reset_index(inplace=True, names="model")
+        results.append(df)
+    return pd.concat(results_list)
 
 def do_1_run(
         run_num: int,
@@ -200,7 +209,9 @@ if __name__ == "__main__":
     # Run the experiment
     ################################################################################
 
-    hyperparameters = {"AutoARIMA": {}, "PatchTST": {"max_epochs": max_epochs}, "TemporalFusionTransformer": {"max_epochs": max_epochs}}
+    hyperparameters = {#"AutoARIMA": {}, 
+            #"PatchTST": {"max_epochs": max_epochs}, 
+            "TemporalFusionTransformer": {"max_epochs": max_epochs}}
     results = run_experiment(
         num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, max_workers
     )

@@ -79,11 +79,11 @@ def check_prediction_intervals(
 
         coverage_flags = help_check_prediction_intervals(test_df, prediction_length, predictions)
 
-        print(len(predictions["mean"]))
-        print(len(lower_bounds))
-        print(len(upper_bounds))
-        print(len(coverage_flags))
-        print(len((test_df["target"].iloc[-prediction_length:] - predictions.iloc[:, 0]) ** 2))
+        #print(len(predictions["mean"]))
+        #print(len(lower_bounds))
+        #print(len(upper_bounds))
+        #print(len(coverage_flags))
+        #print(len((test_df["target"].iloc[-prediction_length:] - predictions.iloc[:, 0]) ** 2))
         df = pd.DataFrame(
             {"model_name": model_name,
             "h": range(1, prediction_length+1),
@@ -113,7 +113,7 @@ def check_prediction_intervals(
 
 def do_1_run(
         run_num: int,
-        phi: float,
+        uphi: float,
         sigma: float,
         n: int,
         prediction_length: int,
@@ -142,6 +142,7 @@ def run_experiment(
         max_workers: int
     ) -> pd.DataFrame:
     phi = calc_phi_from_fve(fve)
+    print(phi)
     sigma = 1
     n = train_size + prediction_length
 
@@ -298,8 +299,8 @@ if __name__ == "__main__":
 
     hyperparameters = {
         # "AutoARIMA": {}, 
-     "PatchTST": {'max_epochs': max_epochs, 'patch_len': 1, 'stride': 4, 'nhead': 1, 'd_model': 1, 'context_length': 8}
-    # "TemporalFusionTransformer": {"max_epochs": max_epochs}
+     #"PatchTST": {'max_epochs': max_epochs, 'patch_len': 1, 'stride': 4, 'nhead': 1, 'd_model': 1, 'context_length': 8}
+     "TemporalFusionTransformer": {"max_epochs": max_epochs, "hidden_dim": 1, }
     }
     results = run_experiment(
         num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters, max_workers
