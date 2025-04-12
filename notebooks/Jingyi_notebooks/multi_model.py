@@ -31,26 +31,24 @@ class WrappedForecastModel(nn.Module):
             past_observed_values=torch.ones_like(x.squeeze(-1)),  # Typically a mask of same shape
         )
 
-def cal_flops(model_name: str, hyperparameters: Dict[str | Type, Any], prediction_length: int) -> list:
-    if model_name == "PatchTST": 
-        model = gluonts.torch.model.patch_tst.PatchTSTModel(
-            context_length=hyperparameters["context_length"], 
-            prediction_length=prediction_length, 
-            patch_len=1, 
-            stride=hyperparameters["stride"],
-            d_model=hyperparameters["d_model"], 
-            nhead=hyperparameters["nhead"], 
-            num_encoder_layers=hyperparameters["num_encoder_layers"], 
-            scaling="mean",
-            activation="relu", 
-            dim_feedforward=128, 
-            dropout=0.1, 
-            norm_first=False, 
-            padding_patch="end", 
-            num_feat_dynamic_real=0
-        )
-    
-    # if model_name == "": 
+def cal_flops(hyperparameters: Dict[str | Type, Any], prediction_length: int) -> list:
+    hyperparameters = hyperparameters["PatchTST"]
+    model = gluonts.torch.model.patch_tst.PatchTSTModel(
+        context_length=hyperparameters["context_length"], 
+        prediction_length=prediction_length, 
+        patch_len=1, 
+        stride=hyperparameters["stride"],
+        d_model=hyperparameters["d_model"], 
+        nhead=hyperparameters["nhead"], 
+        num_encoder_layers=hyperparameters["num_encoder_layers"], 
+        scaling="mean",
+        activation="relu", 
+        dim_feedforward=128, 
+        dropout=0.1, 
+        norm_first=False, 
+        padding_patch="end", 
+        num_feat_dynamic_real=0
+    )
 
     wrapped_model = WrappedForecastModel(model)
 
@@ -101,8 +99,11 @@ def check_prediction_intervals(
 
     results_list = []
     for model_name, _ in hyperparameters.items():
+        ### another loop for testing, for 
+        # for i in range(1, num_runs)
+            
         predictions = predictor.predict(train_df, model=model_name)
-        lower_bounds, upper_bounds = predictions.iloc[:, -2], predictions.iloc[:, -1]
+        # lower_bounds, upper_bounds = predictions.iloc[:, -2], predictions.iloc[:, -1]
 
         coverage_flags = help_check_prediction_intervals(test_df, prediction_length, predictions)
         flops, num_params = cal_flops(model_name, hyperparameters[model_name], prediction_length)
@@ -117,7 +118,10 @@ def check_prediction_intervals(
             "squared_error": (test_df["target"].iloc[-prediction_length:] - predictions.iloc[:, 0]) ** 2,
             "pred_length": upper_bounds.values - lower_bounds.values,
             "flops": flops,
-            "num_params": num_params
+            "num_params": num_params,
+            # variance of sample: sd
+            "sd": np.std(train_df["target"]),
+            "runtime": predictor.fit_summary()["model_fit_times"][model_name]
         }        
         )
 
@@ -127,7 +131,7 @@ def check_prediction_intervals(
 
 
 def do_1_run(
-        run_num: int,
+        run_idx: int,
         train_size: int,
         prediction_length: int,
         eval_metric: str,
@@ -139,22 +143,22 @@ def do_1_run(
         hyparam_data: pd.DataFrame 
     ) -> pd.DataFrame:
 
-    # extract the dataset for each model training & testing
-    train_start_idx = run_num * train_size
-    train_end_idx = train_start_idx + train_size
+    # extract the same dataset for each model training & testing
+    train_start_idx = 0 
+    train_end_idx = train_size
     train_df = train_full_df.iloc[train_start_idx:train_end_idx, ]
     
-    test_start_idx = run_num * prediction_length
-    test_end_idx = test_start_idx + prediction_length
+    test_start_idx = 0 
+    test_end_idx = prediction_length
     test_df = test_full_df.iloc[test_start_idx:test_end_idx, ]
 
     # extract the random generated hyperparameters of PatchTST for each model
     patch_len = 1  # Static value for AR(1)
-    stride = hyparam_data["stride"][run_num]
-    nhead = hyparam_data["nhead"][run_num]
-    d_model = hyparam_data["d_model"][run_num]
-    context_length = hyparam_data["context_length"][run_num]
-    num_encoder_layers = hyparam_data["num_encoder_layers"][run_num]
+    stride = hyparam_data["stride"][run_idx]
+    nhead = hyparam_data["nhead"][run_idx]
+    d_model = hyparam_data["d_model"][run_idx]
+    context_length = hyparam_data["context_length"][run_idx]
+    num_encoder_layers = hyparam_data["num_encoder_layers"][run_idx]
 
     # Ensure d_model is divisible by nhead
     assert d_model % nhead == 0
@@ -174,8 +178,107 @@ def do_1_run(
     }
 
     checks = check_prediction_intervals(train_df, test_df, prediction_length, eval_metric, ci_level, time_limit, verbosity, hyperparameters)
-    checks.insert(0, "run_num", run_num)
+    checks.insert(0, "run_idx", run_idx)
     return checks
+
+
+
+def evaluate_hyperparam(
+        train_size: int,
+        prediction_length: int,
+        eval_metric: str,
+        ci_level: float,
+        time_limit: int,
+        verbosity: int,
+        train_full_df: pd.DataFrame,
+        test_full_df: pd.DataFrame,
+        hyperparameters: dict,
+        hyper_idx: int,
+        dir_name: str
+    ) -> pd.DataFrame:
+
+    # extract the same dataset for each model training & testing
+    # step 1 : training over the first dataset
+    train_start_idx = 0 
+    train_end_idx = train_size
+    train_df = train_full_df.iloc[train_start_idx:train_end_idx, :]
+    test_df = test_full_df.iloc[0 : prediction_length, :]
+
+    train_df = pd.concat([train_df, test_df])
+
+    predictor = TimeSeriesPredictor(
+        prediction_length=prediction_length,
+        eval_metric=eval_metric,
+        verbosity=verbosity,
+        quantile_levels=[(1 - ci_level) / 2, (1 + ci_level) / 2]
+    )
+    
+    predictor.fit(train_data=train_df, time_limit=time_limit, hyperparameters=hyperparameters, enable_ensemble=False)
+
+    # step 2: testing over the rest dataset
+    num_test_dataset = 100 #len(test_full_df["dataset_idx"].unique())
+    results_list = []
+    
+    for i in range(num_test_dataset):
+        observed_start_idx = i * train_size
+        observed_end_idx = observed_start_idx + train_size
+        observed_df = train_full_df.iloc[observed_start_idx:observed_end_idx, :]
+
+        test_df = test_full_df.iloc[i*prediction_length : (i+1)*prediction_length, :]
+
+        predictions = predictor.predict(observed_df)
+        lower_bounds, upper_bounds = predictions.iloc[:, -2], predictions.iloc[:, -1]
+
+        coverage_flags = help_check_prediction_intervals(test_df, prediction_length, predictions)
+  
+        flops, num_params = cal_flops(hyperparameters, prediction_length)
+        runtime = next(iter(predictor.fit_summary()["model_fit_times"])) # extract runtime from dict of dict
+        df = pd.DataFrame(
+            {"hyper_idx": hyper_idx,
+            "h": range(1, prediction_length+1),
+            "observed":test_df["target"].values,
+            "prediction": predictions["mean"].values, 
+            "lower_bound": lower_bounds.values, 
+            "upper_bound": upper_bounds.values,
+            "coverage_flags": coverage_flags.values, 
+            "squared_error": (test_df["target"].values - predictions.iloc[:, 0].values) ** 2,
+            "pred_length": upper_bounds.values - lower_bounds.values,
+            "flops": flops,
+            "num_params": num_params,
+            "sd": np.std(train_df["target"].values), # variance of sample: sd
+            "runtime": runtime
+        }        
+        )
+
+        results_list.append(df)
+
+    results = pd.concat(results_list)
+    results.to_parquet(f"{dir_name}/results_hyper_idx_{hyper_idx}.parquet")
+
+    return results
+    
+
+def get_hyperparameter(df_hyperparameter: pd.DataFrame, max_epochs: int) -> dict:
+    patch_len = 1  # Static value for AR(1)
+    stride = df_hyperparameter["stride"]
+    nhead = df_hyperparameter["nhead"]
+    d_model = df_hyperparameter["d_model"]
+    context_length = df_hyperparameter["context_length"]
+    num_encoder_layers = df_hyperparameter["num_encoder_layers"]
+
+    hyperparameters = {
+        "PatchTST": {
+            'max_epochs': max_epochs,
+            'patch_len': patch_len,
+            'stride': stride,
+            'nhead': nhead,
+            'd_model': d_model,
+            'context_length': context_length,
+            'num_encoder_layers': num_encoder_layers,
+            }
+    }
+    return hyperparameters
+
 
 def run_experiment(
         num_runs: int,
@@ -186,21 +289,31 @@ def run_experiment(
         ci_level: float,
         time_limit: int,
         verbosity: int,
-        max_workers: int
+        max_workers: int#,
+        #max_epochs: int
     ) -> pd.DataFrame:
 
     # load in full train and test data
-    train_full_df = "../data/train_data.parquet"
-    test_full_df = "../data/test_data.parquet"
-    patch_hyperparam_df = "../data/patchTST_hyperparam.py"
+    train_full_df = f"./input_data/train_1000_{fve}_{train_size}_{prediction_length}.parquet"
+    test_full_df = f"./input_data/test_1000_{fve}_{train_size}_{prediction_length}.parquet"
+    patch_hyperparam_df = pd.read_parquet(f"./input_data/PatchTST_hyperparams_1000.parquet")
+    num_hyper = len(patch_hyperparam_df.index)
     train_full_df = TimeSeriesDataFrame.from_data_frame(train_full_df)
     test_full_df = TimeSeriesDataFrame.from_data_frame(test_full_df)
 
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
+    if not os.path.exists(dir_name):
+        os.mkdir(dir_name)
+
     if max_workers == 1:
-        results = [
-            do_1_run(run_num, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, train_full_df, test_full_df, patch_hyperparam_df)
-            for run_num in range(num_runs) # model idx
-        ]
+        results = []
+
+        for hyper_idx in range(num_hyper):
+            hyperparameters = get_hyperparameter(patch_hyperparam_df.iloc[hyper_idx, :], max_epochs)
+            result = evaluate_hyperparam(train_size, prediction_length, eval_metric, ci_level, time_limit,
+            verbosity, train_full_df, test_full_df, hyperparameters, hyper_idx, dir_name)
+            results.append(result)
+
     else:
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             results = list(
@@ -232,7 +345,7 @@ def make_dir_name(
         time_limit: int,
         max_epochs: int
     ) -> str:
-    dir_name = f"{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}"
+    dir_name = f"multi_model_{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}"
     return dir_name
 
 def plot_results(
@@ -247,7 +360,7 @@ def plot_results(
         max_epochs: int
     ) -> list[ggplot]:
     
-    df_plot = results.groupby(["model_name", "run_num"], as_index=False).agg(
+    df_plot = results.groupby(["model_name", "run_idx"], as_index=False).agg(
         coverage_accuracy=("coverage_flags", "mean"),
         mean_squared_error=("squared_error", "mean"),   # Mean squared error for each model
         RMSE=("squared_error", lambda x: np.sqrt(x.mean())),
@@ -256,6 +369,21 @@ def plot_results(
     )
 
     plot_title = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
+    
+    df_h = results.groupby(["model_name", "h"], as_index=False).agg(
+        coverage_accuracy=("coverage_flags", "mean"),
+        mean_squared_error=("squared_error", "mean"),   # Mean squared error for each group
+        RMSE=("squared_error", lambda x: np.sqrt(x.mean())),
+        avg_pred_len=("pred_length", "mean")
+    )
+
+    p_coverage = (
+        ggplot(df_plot, aes(x="h", y="coverage_accuracy", group="model_name")) +
+        geom_point() + geom_line() +
+        facet_wrap("~model_name", scales="fixed") +
+        labs(title=plot_title, x="Horizon (h)", y="Coverage") +
+        theme(subplots_adjust={'wspace': 0.25})
+    )
 
     p_coverage_flop = (
         ggplot(df_plot, aes(x="flops", y="coverage_accuracy", group="model_name")) +
@@ -291,8 +419,7 @@ def plot_results(
     )
     
 
-    return [p_coverage_flop, p_rmse_flop, p_coverage_param, p_rmse_param]
-
+    return [p_coverage, p_coverage_flop, p_rmse_flop, p_coverage_param, p_rmse_param]
 
 if __name__ == "__main__":
     print("Running AR(1) Experiment...")
@@ -337,20 +464,21 @@ if __name__ == "__main__":
     results = run_experiment(
         num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, max_workers
     )
-    results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
+    
+    #results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
 
     ################################################################################
     # Save the results
     ################################################################################
 
-    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
-    if os.path.exists(dir_name):
-        shutil.rmtree(dir_name)
-    os.mkdir(dir_name)
+    #dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
+    #if not os.path.exists(dir_name):
+        #os.mkdir(dir_name)
+    # shutil.rmtree(dir_name)
 
     results.to_parquet(os.path.join(dir_name, "results.parquet"))
-    for i, plot in enumerate(results_plot):
-        plot.save(os.path.join(dir_name, f"plot_{i}.pdf"))
+    # for i, plot in enumerate(results_plot):
+    #     plot.save(os.path.join(dir_name, f"plot_{i}.pdf"))
 
     experiment_elapsed_time = time.time() - experiment_start_time
     print(f"Done ({int(experiment_elapsed_time)}s)")
