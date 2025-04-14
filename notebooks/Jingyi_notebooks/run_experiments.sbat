@@ -11,8 +11,8 @@
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=20
-#SBATCH --mem=5GB
-#SBATCH --time=01:00:00                 
+#SBATCH --mem=10GB
+#SBATCH --time=12:00:00                 
 
 echo "Running on $SLURM_JOB_NODELIST"
 echo "Running in $(pwd)"
