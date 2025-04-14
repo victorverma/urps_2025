@@ -98,15 +98,12 @@ def check_prediction_intervals(
     predictor.fit(train_data=train_df, time_limit=time_limit, hyperparameters=hyperparameters, enable_ensemble=False)
 
     results_list = []
-    for model_name, _ in hyperparameters.items():
-        ### another loop for testing, for 
-        # for i in range(1, num_runs)
-            
+    for model_name, _ in hyperparameters.items():            
         predictions = predictor.predict(train_df, model=model_name)
-        # lower_bounds, upper_bounds = predictions.iloc[:, -2], predictions.iloc[:, -1]
-
+     
         coverage_flags = help_check_prediction_intervals(test_df, prediction_length, predictions)
         flops, num_params = cal_flops(model_name, hyperparameters[model_name], prediction_length)
+        
         df = pd.DataFrame(
             {"model_name": model_name,
             "h": range(1, prediction_length+1),
@@ -307,7 +304,6 @@ def run_experiment(
 
     if max_workers == 1:
         results = []
-
         for hyper_idx in range(num_hyper):
             hyperparameters = get_hyperparameter(patch_hyperparam_df.iloc[hyper_idx, :], max_epochs)
             result = evaluate_hyperparam(train_size, prediction_length, eval_metric, ci_level, time_limit,
@@ -347,79 +343,6 @@ def make_dir_name(
     ) -> str:
     dir_name = f"multi_model_{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}"
     return dir_name
-
-def plot_results(
-        results: pd.DataFrame,
-        num_runs: int,
-        fve: float,
-        train_size: int,
-        prediction_length: int,
-        eval_metric: str,
-        ci_level: float,
-        time_limit: int,
-        max_epochs: int
-    ) -> list[ggplot]:
-    
-    df_plot = results.groupby(["model_name", "run_idx"], as_index=False).agg(
-        coverage_accuracy=("coverage_flags", "mean"),
-        mean_squared_error=("squared_error", "mean"),   # Mean squared error for each model
-        RMSE=("squared_error", lambda x: np.sqrt(x.mean())),
-        flops = ("flops", "mean"),
-        num_params = ("num_params", "mean")
-    )
-
-    plot_title = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
-    
-    df_h = results.groupby(["model_name", "h"], as_index=False).agg(
-        coverage_accuracy=("coverage_flags", "mean"),
-        mean_squared_error=("squared_error", "mean"),   # Mean squared error for each group
-        RMSE=("squared_error", lambda x: np.sqrt(x.mean())),
-        avg_pred_len=("pred_length", "mean")
-    )
-
-    p_coverage = (
-        ggplot(df_plot, aes(x="h", y="coverage_accuracy", group="model_name")) +
-        geom_point() + geom_line() +
-        facet_wrap("~model_name", scales="fixed") +
-        labs(title=plot_title, x="Horizon (h)", y="Coverage") +
-        theme(subplots_adjust={'wspace': 0.25})
-    )
-
-    p_coverage_flop = (
-        ggplot(df_plot, aes(x="flops", y="coverage_accuracy", group="model_name")) +
-        geom_point() + geom_line() +
-        facet_wrap("~model_name", scales="fixed") +
-        labs(title=plot_title, x="flops (KMac)", y="Coverage") +
-        theme(subplots_adjust={'wspace': 0.25})
-    )
-
-    # Squared error plot
-    p_rmse_flop = (
-        ggplot(df_plot, aes(x="flops", y="RMSE", color="model_name")) +
-        geom_point() + geom_line() +
-        facet_wrap("~model_name", scales="fixed") +  # Separate plots for each model
-        labs(title="RMSE by Model vs. flops", x="flops (KMac)", y="RMSE") +
-        theme(subplots_adjust={'wspace': 0.25})
-    )
-
-    p_coverage_param = (
-        ggplot(df_plot, aes(x="num_params", y="coverage_accuracy", group="model_name")) +
-        geom_point() + geom_line() +
-        facet_wrap("~model_name", scales="fixed") +
-        labs(title=plot_title, x="number of parameters (K)", y="Coverage") +
-        theme(subplots_adjust={'wspace': 0.25})
-    )
-
-    # Squared error plot
-    p_rmse_param = (
-        ggplot(df_plot, aes(x="num_params", y="RMSE", color="model_name")) +
-        geom_point() + geom_line() +
-        labs(title="RMSE by Model vs. number of parameters(K)", x="number of parameters (K)", y="RMSE") +
-        theme(subplots_adjust={'wspace': 0.25})
-    )
-    
-
-    return [p_coverage, p_coverage_flop, p_rmse_flop, p_coverage_param, p_rmse_param]
 
 if __name__ == "__main__":
     print("Running AR(1) Experiment...")
@@ -464,21 +387,14 @@ if __name__ == "__main__":
     results = run_experiment(
         num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, max_workers
     )
-    
-    #results_plot = plot_results(results, num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
 
     ################################################################################
     # Save the results
     ################################################################################
 
-    #dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
-    #if not os.path.exists(dir_name):
-        #os.mkdir(dir_name)
-    # shutil.rmtree(dir_name)
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
 
-    results.to_parquet(os.path.join(dir_name, "results.parquet"))
-    # for i, plot in enumerate(results_plot):
-    #     plot.save(os.path.join(dir_name, f"plot_{i}.pdf"))
+    results.to_parquet(f"{dir_name}/results.parquet")
 
     experiment_elapsed_time = time.time() - experiment_start_time
     print(f"Done ({int(experiment_elapsed_time)}s)")
