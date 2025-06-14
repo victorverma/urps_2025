@@ -1,0 +1,17 @@
+#!/bin/sh
+
+#SBATCH --job-name=ar1_experiments
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8GB
+#SBATCH --time=12:00:00
+
+echo "Running on $SLURM_JOB_NODELIST"
+echo "Running in $(pwd)"
+
+module load cuda/12.1.1
+./run_gpu_experiments.sh

@@ -1,0 +1,19 @@
+#!/bin/sh
+
+#SBATCH --job-name=ar1_experiments
+#SBATCH --mail-user=jagwinn@umich.edu
+#SBATCH --mail-type=BEGIN,END,FAIL
+
+#SBATCH --account=sstoev0
+#SBATCH --partition=standard
+
+#SBATCH --nodes=16
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16GB
+#SBATCH --time=01:00:00
+
+echo "Running on $SLURM_JOB_NODELIST"
+echo "Running in $(pwd)"
+
+./run_experiments_jake.sh

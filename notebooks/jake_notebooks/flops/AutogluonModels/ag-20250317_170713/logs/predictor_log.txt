@@ -1,0 +1,60 @@
+Beginning AutoGluon training... Time limit = 100s
+AutoGluon will save models to '/home/jagwinn/urps_2025/experiments/ar1/AutogluonModels/ag-20250317_170713'
+=================== System Info ===================
+AutoGluon Version:  1.2
+Python Version:     3.11.11
+Operating System:   Linux
+Platform Machine:   x86_64
+Platform Version:   #1 SMP Mon Nov 11 23:31:49 EST 2024
+CPU Count:          36
+GPU Count:          0
+Memory Avail:       165.88 GB / 186.90 GB (88.8%)
+Disk Space Avail:   11826.21 GB / 215040.00 GB (5.5%)
+===================================================
+
+Fitting with arguments:
+{'enable_ensemble': False,
+ 'eval_metric': RMSE,
+ 'hyperparameters': {'TemporalFusionTransformer': {'max_epochs': 2}},
+ 'known_covariates_names': [],
+ 'num_val_windows': 1,
+ 'prediction_length': 100,
+ 'quantile_levels': [0.025000000000000022, 0.975],
+ 'random_seed': 123,
+ 'refit_every_n_windows': 1,
+ 'refit_full': False,
+ 'skip_model_selection': False,
+ 'target': 'target',
+ 'time_limit': 100,
+ 'verbosity': 4}
+
+Inferred time series frequency: 'min'
+Provided train_data has 1000 rows, 1 time series. Median time series length is 1000 (min=1000, max=1000). 
+
+Provided data contains following columns:
+	target: 'target'
+
+AutoGluon will gauge predictive performance using evaluation metric: 'RMSE'
+	This metric's sign has been flipped to adhere to being higher_is_better. The metric score can be multiplied by -1 to get the metric value.
+===================================================
+
+Starting training. Start time is 2025-03-17 13:07:16
+Models that will be trained: ['TemporalFusionTransformer']
+Training timeseries model TemporalFusionTransformer. Training for up to 96.7s of the 96.7s of remaining time.
+	Window 0
+GluonTS logging is turned on during training. Note that losses reported by GluonTS may not correspond to those specified via `eval_metric`.
+	Training on device 'cpu'
+Removing lightning_logs directory /home/jagwinn/urps_2025/experiments/ar1/AutogluonModels/ag-20250317_170713/models/TemporalFusionTransformer/W0/lightning_logs
+		-4.6449      = Validation score (-RMSE)
+		103.765 s    = Training runtime
+		0.150   s    = Prediction runtime
+	-4.6449       = Validation score (-RMSE)
+	103.78  s     = Training runtime
+	0.15    s     = Validation (prediction) runtime
+Training complete. Models trained: ['TemporalFusionTransformer']
+Total runtime: 104.00 s
+Best model: TemporalFusionTransformer
+Best model score: -4.6449
+Found no cached predictions
+Prediction order: {'TemporalFusionTransformer'}
+Cached predictions saved to /home/jagwinn/urps_2025/experiments/ar1/AutogluonModels/ag-20250317_170713/models/cached_predictions.pkl

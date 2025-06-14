@@ -1,0 +1,22 @@
+#!/bin/sh
+
+
+#SBATCH --job-name=ar1_experiments
+#SBATCH --mail-user=jagwinn@umich.edu
+#SBATCH --mail-type=BEGIN,END,FAIL
+i
+#SBATCH --account=sstoev0
+#SBATCH --partition=gpu
+
+#SBATCH --gres=gpu:1
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=5
+#SBATCH --cpus-per-task=20
+#SBATCH --mem=5GB
+#SBATCH --time=01:00:00                 
+
+echo "Running on $SLURM_JOB_NODELIST"
+echo "Running in $(pwd)"
+
+module load gcc/13.2.0
+./run_experiments_fix.sh
