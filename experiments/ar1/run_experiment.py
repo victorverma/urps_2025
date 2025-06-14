@@ -34,8 +34,21 @@ def calc_phi_from_fve(fve: float) -> float:
 # The function should return a `Series` whose kth entry is `True` if and only if the kth prediction is between the corresponding bounds,
 # inclusive. The index values of the `Series` should be the strings `"1"`, ..., `"f{prediction_length}"`.
 def help_check_prediction_intervals(test_data: TimeSeriesDataFrame, prediction_length: int, predictions: TimeSeriesDataFrame) -> pd.Series:
-    pass
+    # Extract the actual values for the last `prediction_length` steps
+    obs_data = test_data["target"].iloc[-prediction_length:]
 
+    # Identify the lower- and upper-bound columns
+    lower_bounds = predictions.iloc[:, -2]
+    upper_bounds = predictions.iloc[:, -1]
+
+    # Check coverage, inclusive of the bounds
+    coverage = (obs_data >= lower_bounds) & (obs_data <= upper_bounds)
+
+    # Rename the index to string "1", ..., f"{prediction_length}"
+    coverage.index = [str(i) for i in range(1, prediction_length + 1)]
+    
+    return coverage
+    
 # Fill in the function below. Assume that
 #
 # - The `"timestamp"` column of `data` contains observation times and the `"target"` column contains observation values.
@@ -57,7 +70,58 @@ def check_prediction_intervals(
         time_limit: int,
         hyperparameters: Dict[str | Type, Any]
     ) -> pd.DataFrame:
-    pass
+    
+    # For time series, add an 'item_id' = 0
+    data["item_id"] = 0
+
+    # Assume data is already modified with timestamp, target columns. Convert into AutoGluon TimeSeriesDataFrame objects.
+    data = TimeSeriesDataFrame.from_data_frame(data)
+
+    # Separate training and test sets
+    train_df, test_df = data.train_test_split(prediction_length)
+    
+    # Prepare for storage of results
+    results_list = []
+
+    # Compute the lower/upper quantiles
+    alpha = 1.0 - ci_level   # e.g., if ci_level=0.95, alpha=0.05
+    lower_quantile = alpha / 2.0
+    upper_quantile = 1.0 - lower_quantile
+    
+    for model_name, model_hparams in hyperparameters.items():
+        # Create a fresh predictor path to avoid collisions
+        # create the predictor
+        predictor = TimeSeriesPredictor(
+            prediction_length = prediction_length,
+            eval_metric = eval_metric,
+            quantile_levels = [lower_quantile, upper_quantile]
+        )
+        
+        # Fit the model
+        predictor.fit(
+            train_data=train_df,
+            hyperparameters={model_name: model_hparams},
+            time_limit=time_limit
+        )
+        
+        # Generate predictions with intervals
+        pred_ints = predictor.predict(train_df)
+        
+        # The "next-to-last" column is the lower bound, the last column is upper bound
+        coverage_flags = help_check_prediction_intervals(
+            test_df,
+            prediction_length,
+            pred_ints
+        )
+        
+        # Build one row for this model
+        row = {"model": model_name}
+        for i in range(1, prediction_length + 1):
+            row[str(i)] = coverage_flags[str(i)]
+        results_list.append(row)
+    
+    results_df = pd.DataFrame(results_list)
+    return results_df
 
 # Fill in the function below. Assume that
 #
@@ -85,7 +149,36 @@ def run_ar1_experiment(
         hyperparameters: Dict[str | Type, Any],
         rng: np.random.Generator
     ) -> pd.DataFrame:
-    pass
+    results_list = []
+    
+    # Compute AR(1) parameter phi from fraction of variance explained
+    phi = calc_phi_from_fve(fve)
+    
+    for run_idx in range(1, num_runs + 1):
+        # Simulate a new dataset of length train_size + prediction_length
+        n = train_size + prediction_length
+        data = simulate_ar1(phi=phi, sigma=1.0, n=n, rng=rng)
+        
+        # Check coverage for each model
+        coverage_df = check_prediction_intervals(
+            data=data,
+            prediction_length=prediction_length,
+            eval_metric=eval_metric,
+            ci_level=ci_level,
+            time_limit=time_limit,
+            hyperparameters=hyperparameters
+        )
+        
+        # Tag with run number
+        coverage_df["run_num"] = run_idx
+        results_list.append(coverage_df)
+    
+    # Concatenate all
+    all_results = pd.concat(results_list, ignore_index=True)
+    # Put 'run_num' in front
+    cols = ["run_num", "model"] + [str(i) for i in range(1, prediction_length + 1)]
+    all_results = all_results[cols]
+    return all_results
 
 def make_dir_name(
     num_runs: int,
@@ -123,7 +216,38 @@ def plot_results(
         ci_level: float,
         time_limit: int
     ) -> ggplot:
-    pass
+    # results columns: ["run_num", "model", "1", "2", ..., "prediction_length"]
+    # Convert True/False to numeric coverage (1/0)
+    coverage_cols = [str(i) for i in range(1, prediction_length + 1)]
+    
+    # Melt into long form for plotting:
+    long_df = results.melt(
+        id_vars=["run_num", "model"],
+        value_vars=coverage_cols,
+        var_name="horizon",
+        value_name="contains"
+    )
+    
+    # Convert bool -> float (0/1) if necessary
+    long_df["contains"] = long_df["contains"].astype(float)
+    # Compute coverage by (model, horizon)
+    coverage_df = long_df.groupby(["model", "horizon"], as_index=False)["contains"].mean()
+    coverage_df.rename(columns={"contains": "coverage"}, inplace=True)
+    
+    # Convert horizon to numeric so ggplot can treat it properly on x-axis
+    coverage_df["horizon"] = coverage_df["horizon"].astype(int)
+    
+    # Build the plot
+    plot_title = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit)
+    p = (
+        ggplot(coverage_df, aes(x="horizon", y="coverage", group="model")) +
+        geom_point() +
+        geom_line() +
+        facet_wrap("~model", scales="fixed") +
+        labs(title=plot_title, x="Horizon (h)", y="Coverage") +
+        theme(subplots_adjust={'wspace': 0.25})
+    )
+    return p
 
 if __name__ == "__main__":
     print("Running AR(1) Experiment", end="", flush=True)
