@@ -2,27 +2,6 @@ import argparse
 import numpy as np
 import pandas as pd
 
-def generate_divisible_number(d_model: np.ndarray, nhead: np.ndarray, num_runs: int) -> np.ndarray:
-    """
-    Generate random numbers for d_model that are divisible by corresponding nhead values.
-    
-    Args:
-        d_model: Array of initial d_model values
-        nhead: Array of nhead values (must be same length as d_model)
-        num_runs: Number of values to generate (length of arrays)
-        
-    Returns:
-        Array of d_model values where each d_model[i] is divisible by nhead[i]
-    """
-    
-    # Generate divisible numbers
-    for i in range(num_runs):
-        while d_model[i] % nhead[i] != 0:
-            d_model[i] = np.random.randint(1, 11)
-    
-    return d_model
-
-
 def generate_patchtst_hyperparameters(num_runs: int, seed: int) -> pd.DataFrame:
     """
     Generate random hyperparameters for PatchTST model experiments.
@@ -40,13 +19,12 @@ def generate_patchtst_hyperparameters(num_runs: int, seed: int) -> pd.DataFrame:
         - nhead: Random int between 1-10
         - num_encoder_layers: Random int between 1-5
     """
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     hyperparameters_dict = {
-        "context_length": np.random.randint(1, 100, num_runs),
-        "stride": np.random.randint(1, 20, num_runs),
-        "d_model": np.random.randint(1, 32, num_runs),
-        "nhead": np.random.randint(1, 10, num_runs),
-        "num_encoder_layers":np.random.randint(1, 5, num_runs),
+        "context_length": rng.integers(1, 100, num_runs),
+        "stride": rng.integers(1, 20, num_runs),
+        "nhead": rng.integers(1, 10, num_runs),
+        "num_encoder_layers": rng.integers(1, 5, num_runs),
 
         # Static
         # "patch_len": 1,  # Static value for AR(1) 
@@ -99,11 +77,9 @@ def generate_patchtst_hyperparameters(num_runs: int, seed: int) -> pd.DataFrame:
     # Convert the dictionary to a DataFrame
     df_hyperparam = pd.DataFrame(hyperparameters_dict)
 
-    # Ensure d_model is divisible by nhead
-    d_model = df_hyperparam["d_model"].values
-    nhead = df_hyperparam["nhead"].values
-    df_hyperparam["d_model"] = generate_divisible_number(d_model, nhead, num_runs)                                                    
-    
+    df_hyperparam["d_model"] = rng.integers(1, 32 // df_hyperparam["nhead"], num_runs) * \
+                                df_hyperparam["nhead"]
+   
     return df_hyperparam
 
 if __name__ == "__main__":
