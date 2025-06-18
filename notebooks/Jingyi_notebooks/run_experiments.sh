@@ -1,6 +1,6 @@
 #!/bin/sh
 
-conda run -p ../../autogluon_env/ --live-stream python run_experiments.py \
+conda run -p ../../autogluon_env/ --live-stream python 3_run_experiments.py \
     --num_runs=1000 \
     --fve=0.5 \
     --train_size=10000 \
