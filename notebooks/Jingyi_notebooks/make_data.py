@@ -3,15 +3,25 @@ import numpy as np
 import os
 import pandas as pd
 import shutil
-import time
-from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
-from concurrent.futures import ProcessPoolExecutor
-from plotnine import *
 from statsmodels.tsa.arima_process import ArmaProcess
-from typing import Any, Dict, Type
 
 
 def simulate_ar1(phi: float, sigma: float, n: int, rng: np.random.Generator) -> pd.DataFrame:
+    """
+    Simulate an AR(1) time series process.
+    
+    Args:
+        phi: Autoregressive parameter (must have absolute value < 1)
+        sigma: Standard deviation of the noise
+        n: Number of time steps to generate
+        rng: Random number generator instance
+        
+    Returns:
+        DataFrame with columns 'timestamp' and 'target' containing the generated time series
+        
+    Raises:
+        ValueError: If phi has absolute value >= 1
+    """
     if np.abs(phi) >= 1:
         raise ValueError("The absolute value of phi must be less than one.")
     arma_process = ArmaProcess(ar=np.array([1, -phi]), ma = np.array([1]))
@@ -22,13 +32,42 @@ def simulate_ar1(phi: float, sigma: float, n: int, rng: np.random.Generator) -> 
     return data
 
 def calc_phi_from_fve(fve: float) -> float:
+    """
+    Calculate the AR(1) coefficient phi from Fraction of Variance Explained (FVE).
+    
+    Args:
+        fve: Fraction of variance explained (must be in [0, 1))
+        
+    Returns:
+        The calculated phi value
+        
+    Raises:
+        ValueError: If fve is outside [0, 1)
+    """
     if fve < 0 or fve >= 1:
         raise ValueError("fve must be in [0, 1).")
     phi = np.sqrt(fve)
     return phi
 
-def generate_arima_data(fve: float, num_runs: int, train_size: int, prediction_length: int, seed: int) -> list[pd.DataFrame]:
-    np.random.seed(seed)  # Set random seed for replication
+def generate_ar1_data(fve: float, num_runs: int, train_size: int, prediction_length: int, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Generate training and test datasets for AR(1) time series experiments.
+    
+    Args:
+        fve: Fraction of variance explained for the AR(1) process
+        num_runs: Number of independent time series to generate
+        train_size: Length of training period
+        prediction_length: Length of test period
+        seed: Random seed for reproducibility
+        
+    Returns:
+        Tuple containing (full_train_df, full_test_df) DataFrames with columns:
+        - item_id: Constant 0 (single time series)
+        - timestamp: Datetime index
+        - target: Generated values
+        - run_idx: Identifier for each independent run
+        - fve: Fraction of variance explained (repeated for each row)
+    """
     rng = np.random.default_rng(seed)
 
     # Calculate phi from FVE
@@ -44,15 +83,17 @@ def generate_arima_data(fve: float, num_runs: int, train_size: int, prediction_l
         data = simulate_ar1(phi=phi, sigma=sigma, n=train_size + prediction_length, rng=rng)
         
         # Split the data into training and test sets
-        train_df = data.iloc[:train_size]
-        test_df = data.iloc[train_size:]
+        train_df = data.iloc[:train_size].copy()
+        test_df = data.iloc[train_size:].copy()
 
-        train_data.append(train_df)
-        test_data.append(test_df)
+        # Add metadata columns
         train_data["run_idx"] = run
         train_data["fve"] = fve
         test_data["run_idx"] = run
         test_data["fve"] = fve
+
+        train_data.append(train_df)
+        test_data.append(test_df)
 
     # Combine all runs into single train and test dataframes
     full_train_df = pd.concat(train_data, ignore_index=True)
@@ -90,15 +131,15 @@ if __name__ == "__main__":
     ################################################################################
     # Run the generator
     ################################################################################
-    full_train_df, full_test_df = generate_arima_data(fve, num_runs, train_size, prediction_length, seed)
+    full_train_df, full_test_df = generate_ar1_data(fve, num_runs, train_size, prediction_length, seed)
 
     ################################################################################
     # Save the data
     ################################################################################
     dir_name = "../data"
-    # if os.path.exists(dir_name):
-    #     shutil.rmtree(dir_name)
-    # os.mkdir(dir_name)
+    if os.path.exists(dir_name):
+        shutil.rmtree(dir_name)
+    os.mkdir(dir_name)
     
     full_train_df.to_parquet(f'../data/train_data.parquet', index=False)
     full_test_df.to_parquet(f'../data/test_data.parquet', index=False)

@@ -3,21 +3,17 @@ import numpy as np
 import os
 import re
 import pandas as pd
-import shutil
 import time
 from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
 from concurrent.futures import ProcessPoolExecutor
-from plotnine import *
-from statsmodels.tsa.arima_process import ArmaProcess
 from typing import Any, Dict, Type
-import random
 import torch
-import pickle
 import gluonts.torch.model.patch_tst
 import torch.nn as nn
 from ptflops import get_model_complexity_info
 
 class WrappedForecastModel(nn.Module):
+    """Wrapper class for PatchTST model to compute FLOPS"""
     def __init__(self, model):
         super().__init__()
         self.model = model
@@ -32,6 +28,16 @@ class WrappedForecastModel(nn.Module):
         )
 
 def cal_flops(hyperparameters: Dict[str | Type, Any], prediction_length: int) -> list:
+    """
+    Calculate FLOPs and number of parameters for a PatchTST model.
+
+    Args:
+        hyperparameters: Dictionary containing model hyperparameters
+        prediction_length: Length of prediction horizon
+        
+    Returns:
+        List containing [FLOPs, number_of_parameters]
+    """
     hyperparameters = hyperparameters["PatchTST"]
     model = gluonts.torch.model.patch_tst.PatchTSTModel(
         context_length=hyperparameters["context_length"], 
@@ -70,6 +76,17 @@ def rmse(y_true, y_pred):
 
 def help_check_prediction_intervals(test_data: TimeSeriesDataFrame,
                                      prediction_length: int, predictions: TimeSeriesDataFrame) -> pd.Series:
+    """
+    Check if actual values fall within prediction intervals.
+    
+    Args:
+        test_data: DataFrame containing actual values
+        prediction_length: Length of prediction horizon
+        predictions: DataFrame containing prediction intervals
+        
+    Returns:
+        Boolean Series indicating whether each prediction was within bounds
+    """
     actuals = test_data["target"]
     are_lower_bounds_right = actuals >= predictions.iloc[:, -2]
     are_upper_bounds_right = actuals <= predictions.iloc[:, -1]
@@ -87,7 +104,22 @@ def check_prediction_intervals(
         verbosity: int,
         hyperparameters: Dict[str | Type, Any]
     ) -> pd.DataFrame:
-
+    """
+    Evaluate model predictions against test data.
+    
+    Args:
+        train_df: Training data
+        test_df: Test data
+        prediction_length: Forecast horizon
+        eval_metric: Evaluation metric
+        ci_level: Confidence interval level
+        time_limit: Maximum training time
+        verbosity: Logging level
+        hyperparameters: Model hyperparameters
+        
+    Returns:
+        DataFrame containing evaluation results
+    """
     predictor = TimeSeriesPredictor(
         prediction_length=prediction_length,
         eval_metric=eval_metric,
@@ -100,13 +132,14 @@ def check_prediction_intervals(
     results_list = []
     for model_name, _ in hyperparameters.items():            
         predictions = predictor.predict(train_df, model=model_name)
-     
+        lower_bounds, upper_bounds = predictions.iloc[:, -2], predictions.iloc[:, -1]
+
         coverage_flags = help_check_prediction_intervals(test_df, prediction_length, predictions)
         flops, num_params = cal_flops(model_name, hyperparameters[model_name], prediction_length)
         
         df = pd.DataFrame(
             {"model_name": model_name,
-            "h": range(1, prediction_length+1),
+            "h": range(1, prediction_length + 1),
             "observed":test_df["target"].iloc[-prediction_length:],
             "prediction": predictions["mean"].values, 
             "lower_bound": lower_bounds.values, 
@@ -139,7 +172,24 @@ def do_1_run(
         test_full_df: pd.DataFrame,
         hyparam_data: pd.DataFrame 
     ) -> pd.DataFrame:
-
+    """
+    Execute a single experimental run with specific hyperparameters.
+    
+    Args:
+        run_idx: Index identifier for the current run
+        train_size: Number of samples in training set
+        prediction_length: Forecast horizon length
+        eval_metric: Evaluation metric name
+        ci_level: Confidence interval level (0-1)
+        time_limit: Maximum training time in seconds
+        verbosity: Logging verbosity level
+        train_full_df: Complete training dataset
+        test_full_df: Complete testing dataset
+        hyparam_data: DataFrame containing hyperparameter configurations
+        
+    Returns:
+        DataFrame containing evaluation results for this run
+    """
     # extract the same dataset for each model training & testing
     train_start_idx = 0 
     train_end_idx = train_size
@@ -193,7 +243,28 @@ def evaluate_hyperparam(
         hyper_idx: int,
         dir_name: str
     ) -> pd.DataFrame:
-
+    """
+    Evaluate hyperparameters on multiple test datasets.
+    
+    Args:
+        train_size: Training set size
+        prediction_length: Forecast horizon
+        eval_metric: Evaluation metric name
+        ci_level: Confidence level for intervals
+        time_limit: Max training time (seconds)
+        verbosity: Logging level
+        train_full_df: Full training data
+        test_full_df: Full testing data
+        hyperparameters: Dictionary of model hyperparameters
+        hyper_idx: Hyperparameter configuration index
+        dir_name: Output directory path
+        
+    Returns:
+        Concatenated DataFrame of evaluation results across test sets
+        
+    Note:
+        Uses first 100 test datasets (hardcoded) - consider making configurable
+    """
     # extract the same dataset for each model training & testing
     # step 1 : training over the first dataset
     train_start_idx = 0 
@@ -256,6 +327,16 @@ def evaluate_hyperparam(
     
 
 def get_hyperparameter(df_hyperparameter: pd.DataFrame, max_epochs: int) -> dict:
+    """
+    Extract hyperparameters from DataFrame row and format for model.
+    
+    Args:
+        df_hyperparameter: Single row DataFrame with hyperparameters
+        max_epochs: Maximum training epochs
+        
+    Returns:
+        Dictionary formatted for AutoGluon's TimeSeriesPredictor
+    """
     patch_len = 1  # Static value for AR(1)
     stride = df_hyperparameter["stride"]
     nhead = df_hyperparameter["nhead"]
@@ -286,10 +367,25 @@ def run_experiment(
         ci_level: float,
         time_limit: int,
         verbosity: int,
-        max_workers: int#,
-        #max_epochs: int
+        max_workers: int
     ) -> pd.DataFrame:
-
+    """
+    Main experiment runner coordinating parallel execution.
+    
+    Args:
+        num_runs: Total experimental runs
+        fve: Fraction of variance explained
+        train_size: Training set size
+        prediction_length: Forecast horizon
+        eval_metric: Evaluation metric
+        ci_level: Confidence level
+        time_limit: Training time limit
+        verbosity: Logging level
+        max_workers: Maximum parallel workers
+        
+    Returns:
+        Combined results DataFrame from all runs
+    """
     # load in full train and test data
     train_full_df = f"./input_data/train_1000_{fve}_{train_size}_{prediction_length}.parquet"
     test_full_df = f"./input_data/test_1000_{fve}_{train_size}_{prediction_length}.parquet"
@@ -341,6 +437,15 @@ def make_dir_name(
         time_limit: int,
         max_epochs: int
     ) -> str:
+    """
+    Generate standardized directory name for results.
+    
+    Args:
+        All experiment configuration parameters
+        
+    Returns:
+        String in format: multi_model_{params...}
+    """
     dir_name = f"multi_model_{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}"
     return dir_name
 
