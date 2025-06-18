@@ -57,6 +57,43 @@ def generate_patchtst_hyperparameters(num_runs: int, seed: int) -> pd.DataFrame:
         # "norm_first": False, 
         # "padding_patch": "end", 
         # "num_feat_dynamic_real": 0,  
+
+            # Parameters:
+            # context_length (int, default = 96) – Number of time units that condition the predictions
+
+            # patch_len (int, default = 16) – Length of the patch.
+
+            # stride (int, default = 8) – Stride of the patch.
+
+            # d_model (int, default = 32) – Size of hidden layers in the Transformer encoder.
+
+            # nhead (int, default = 4) – Number of attention heads in the Transformer encoder which must divide d_model.
+
+            # num_encoder_layers (int, default = 2) – Number of layers in the Transformer encoder.
+
+            # distr_output (gluonts.torch.distributions.Output, default = StudentTOutput()) – Distribution output object that defines how the model output is converted to a forecast, and how the loss is computed.
+
+            # scaling ({"mean", "std", None}, default = "mean") –
+
+            # Scaling applied to each context window during training & prediction. One of "mean" (mean absolute scaling), "std" (standardization), None (no scaling).
+
+            # Note that this is different from the target_scaler that is applied to the entire time series.
+
+            # max_epochs (int, default = 100) – Number of epochs the model will be trained for
+
+            # batch_size (int, default = 64) – Size of batches used during training
+
+            # num_batches_per_epoch (int, default = 50) – Number of batches processed every epoch
+
+            # lr (float, default = 1e-3,) – Learning rate used during training
+
+            # weight_decay (float, default = 1e-8) – Weight decay regularization parameter.
+
+            # keep_lightning_logs (bool, default = False) – If True, lightning_logs directory will NOT be removed after the model finished training.
+
+            # target_scaler ({“standard”, “mean_abs”, “robust”, “min_max”, None}, default = None) 
+
+            # covariate_scaler ({“global”, None})
     }
 
     # Convert the dictionary to a DataFrame
