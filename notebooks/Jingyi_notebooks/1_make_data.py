@@ -136,13 +136,13 @@ if __name__ == "__main__":
     ################################################################################
     # Save the data
     ################################################################################
-    dir_name = "../data"
+    dir_name = "data"
     if os.path.exists(dir_name):
         shutil.rmtree(dir_name)
     os.mkdir(dir_name)
     
-    full_train_df.to_parquet(f'../data/train_data.parquet', index=False)
-    full_test_df.to_parquet(f'../data/test_data.parquet', index=False)
+    full_train_df.to_parquet(f'data/train_{num_runs}_{fve}_{train_size}_{prediction_length}.parquet', index=False)
+    full_test_df.to_parquet(f'data/test_{num_runs}_{fve}_{train_size}_{prediction_length}.parquet', index=False)
     print(f"Shape of the full train dataframe: {full_train_df.shape}")
     print(f"Shape of the full test dataframe: {full_test_df.shape}")
     print(f"Data generation complete. Training and testing datasets are saved in ../data")

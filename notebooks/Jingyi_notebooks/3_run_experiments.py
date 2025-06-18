@@ -367,7 +367,8 @@ def run_experiment(
         ci_level: float,
         time_limit: int,
         verbosity: int,
-        max_workers: int
+        max_workers: int,
+        seed: int
     ) -> pd.DataFrame:
     """
     Main experiment runner coordinating parallel execution.
@@ -387,14 +388,14 @@ def run_experiment(
         Combined results DataFrame from all runs
     """
     # load in full train and test data
-    train_full_df = f"./input_data/train_1000_{fve}_{train_size}_{prediction_length}.parquet"
-    test_full_df = f"./input_data/test_1000_{fve}_{train_size}_{prediction_length}.parquet"
-    patch_hyperparam_df = pd.read_parquet(f"./input_data/PatchTST_hyperparams_1000.parquet")
+    train_full_df = f"data/train_{num_runs}_{fve}_{train_size}_{prediction_length}.parquet"
+    test_full_df = f"data/test_{num_runs}_{fve}_{train_size}_{prediction_length}.parquet"
+    patch_hyperparam_df = pd.read_parquet(f"hyperparams/PatchTST_hyperparams_{num_runs}_{seed}.parquet")
     num_hyper = len(patch_hyperparam_df.index)
     train_full_df = TimeSeriesDataFrame.from_data_frame(train_full_df)
     test_full_df = TimeSeriesDataFrame.from_data_frame(test_full_df)
 
-    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs, seed)
     if not os.path.exists(dir_name):
         os.mkdir(dir_name)
 
@@ -435,7 +436,8 @@ def make_dir_name(
         eval_metric: str,
         ci_level: float,
         time_limit: int,
-        max_epochs: int
+        max_epochs: int,
+        seed: int
     ) -> str:
     """
     Generate standardized directory name for results.
@@ -446,7 +448,7 @@ def make_dir_name(
     Returns:
         String in format: multi_model_{params...}
     """
-    dir_name = f"multi_model_{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}"
+    dir_name = f"multi_model_{num_runs}_{fve}_{train_size}_{prediction_length}_{eval_metric}_{ci_level}_{time_limit}_{max_epochs}_{seed}"
     return dir_name
 
 if __name__ == "__main__":
@@ -472,6 +474,7 @@ if __name__ == "__main__":
         "--verbosity", default=0, type=int, choices=range(5), help="Level of detail of printed information about model fitting"
     )
     parser.add_argument("--max_workers", default=1, type=int, help="Maximum number of worker processes to use")
+    parser.add_argument("--seed", default=1, type=int, help="seed used to generate hyperparameters")
 
     cmd_args = parser.parse_args()
     num_runs = cmd_args.num_runs
@@ -484,20 +487,20 @@ if __name__ == "__main__":
     max_epochs = cmd_args.max_epochs
     verbosity = cmd_args.verbosity
     max_workers = cmd_args.max_workers
-
+    seed = cmd_args.seed
     ################################################################################
     # Run the experiment
     ################################################################################
 
     results = run_experiment(
-        num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, max_workers
+        num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, verbosity, max_workers, seed
     )
 
     ################################################################################
     # Save the results
     ################################################################################
 
-    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs)
+    dir_name = make_dir_name(num_runs, fve, train_size, prediction_length, eval_metric, ci_level, time_limit, max_epochs, seed)
 
     results.to_parquet(f"{dir_name}/results.parquet")
 

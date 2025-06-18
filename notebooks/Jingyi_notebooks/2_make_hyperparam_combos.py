@@ -105,6 +105,6 @@ if __name__ == "__main__":
     ################################################################################
     # Save the data
     ################################################################################
-    df.to_parquet(f'../data/PatchTST_hyperparams.parquet', index=False)
+    df.to_parquet(f'hyperparams/PatchTST_hyperparams_{num_runs}_{seed}.parquet', index=False)
     print(f"Shape of the hyperparameter dataframe: {df.shape}")
     print(f"PatchTST hyperparameters' generation complete. Data is saved in ../data")
